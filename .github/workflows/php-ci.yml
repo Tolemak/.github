@@ -51,6 +51,16 @@ on:
         description: Minimum line coverage in percent; 0 disables the gate.
         type: number
         default: 80
+      mongodb-version:
+        description: Start a MongoDB service of this version (e.g. "5.0") on 127.0.0.1:27017. Empty = none.
+        type: string
+        default: ""
+      env:
+        description: >-
+          Extra environment variables for every later step, one KEY=VALUE per line
+          (e.g. APP_ENV=test). Not for secrets.
+        type: string
+        default: ""
       postgres-version:
         description: >-
           Start a PostgreSQL service of this version (e.g. "17") and export
@@ -107,6 +117,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      mongodb:
+        image: ${{ inputs.mongodb-version != '' && format('mongo:{0}', inputs.mongodb-version) || '' }}
+        ports:
+          - 27017:27017
 
     defaults:
       run:
@@ -121,6 +135,22 @@ jobs:
             php-cs-fixer|phpcs|none) ;;
             *) echo "::error title=php-ci::cs-tool must be php-cs-fixer, phpcs or none (got '$CS_TOOL')"; exit 1 ;;
           esac
+        working-directory: .
+
+      - name: Export environment
+        if: inputs.env != ''
+        env:
+          EXTRA_ENV: ${{ inputs.env }}
+        run: |
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            [ -z "${line// }" ] && continue
+            if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+              echo "::error title=php-ci::env lines must look like KEY=VALUE (got '${line%%=*}')"
+              exit 1
+            fi
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$EXTRA_ENV"
         working-directory: .
 
       - name: Export DATABASE_URL

@@ -139,6 +139,10 @@ jobs:
             cs-tool: phpcs
             postgres-version: ""
             node-version: ""
+            mongodb-version: "5.0"
+            env: |
+              FIXTURE_FLAG=on
+              FIXTURE_URI=mongodb://127.0.0.1:27017/fixture
     uses: ./.github/workflows/php-ci.yml
     with:
       php-version: ${{ matrix.php-version }}
@@ -146,8 +150,12 @@ jobs:
       working-directory: tests/fixtures/php
       cs-tool: ${{ matrix.cs-tool }}
       phpstan-level: "8"
-      pre-test-command: mkdir -p var && php -r 'echo "pre-test command ran", PHP_EOL;'
+      pre-test-command: >-
+        mkdir -p var && php -r 'echo "pre-test command ran", PHP_EOL;'
+        && { [ -z "${{ matrix.mongodb-version }}" ] || { [ "$FIXTURE_FLAG" = on ] && timeout 30 bash -c 'until echo > /dev/tcp/127.0.0.1/27017; do sleep 1; done'; }; }
       postgres-version: ${{ matrix.postgres-version }}
+      mongodb-version: ${{ matrix.mongodb-version || '' }}
+      env: ${{ matrix.env || '' }}
       node-version: ${{ matrix.node-version }}
       node-working-directory: ../node
       node-scripts: typecheck build
