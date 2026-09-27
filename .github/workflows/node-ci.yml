@@ -19,6 +19,10 @@ on:
         description: Dependency install command.
         type: string
         default: npm ci --no-audit --no-fund
+      audit:
+        description: Run npm audit after installing (fails on any known vulnerability).
+        type: boolean
+        default: true
       lint-command:
         description: Lint command (e.g. "npx eslint . --max-warnings 0" or "npx oxlint --deny-warnings"). Empty = skip.
         type: string
@@ -97,6 +101,10 @@ jobs:
 
       - name: Install
         run: ${{ inputs.install-command }}
+
+      - name: npm audit
+        if: inputs.audit
+        run: npm audit
 
       - name: Lint
         if: inputs.lint-command != ''
