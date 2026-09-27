@@ -1,0 +1,36 @@
+name: Coverage gate
+description: Fail the job when line coverage in a Clover or Cobertura XML report is below a minimum percentage.
+author: Tolemak
+
+inputs:
+  file:
+    description: Path to the coverage report (Clover or Cobertura XML), relative to the workspace or absolute.
+    required: true
+  min:
+    description: Minimum line coverage in percent.
+    required: false
+    default: "80"
+  format:
+    description: Report format — auto, clover or cobertura.
+    required: false
+    default: auto
+
+outputs:
+  percent:
+    description: Measured line coverage in percent, rounded to two decimals.
+    value: ${{ steps.gate.outputs.percent }}
+
+runs:
+  using: composite
+  steps:
+    - id: gate
+      shell: bash
+      env:
+        COVERAGE_FILE: ${{ inputs.file }}
+        COVERAGE_MIN: ${{ inputs.min }}
+        COVERAGE_FORMAT: ${{ inputs.format }}
+      run: python3 "$GITHUB_ACTION_PATH/coverage_gate.py" "$COVERAGE_FILE" --min "$COVERAGE_MIN" --format "$COVERAGE_FORMAT"
+
+branding:
+  icon: percent
+  color: green

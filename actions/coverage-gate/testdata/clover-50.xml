@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1760000000">
+  <project timestamp="1760000000">
+    <file name="/app/src/Calculator.php">
+      <class name="App\Calculator" namespace="App">
+        <metrics complexity="3" methods="2" coveredmethods="1" conditionals="0" coveredconditionals="0" statements="10" coveredstatements="5" elements="12" coveredelements="6"/>
+      </class>
+      <line num="10" type="method" name="add" visibility="public" complexity="1" crap="1" count="3"/>
+      <line num="12" type="stmt" count="3"/>
+      <metrics loc="40" ncloc="30" classes="1" methods="2" coveredmethods="1" conditionals="0" coveredconditionals="0" statements="10" coveredstatements="5" elements="12" coveredelements="6"/>
+    </file>
+    <metrics files="3" loc="200" ncloc="150" classes="3" methods="10" coveredmethods="8" conditionals="0" coveredconditionals="0" statements="40" coveredstatements="20" elements="50" coveredelements="42"/>
+  </project>
+</coverage>

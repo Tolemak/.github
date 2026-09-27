@@ -1,0 +1,181 @@
+name: Python CI
+
+# Reusable workflow for Python projects and scripts:
+# install → ruff check → ruff format --check → [mypy] → tests under coverage → coverage gate.
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version, e.g. "3.11".
+        type: string
+        default: "3.11"
+      working-directory:
+        description: Project directory, relative to the repository root.
+        type: string
+        default: "."
+      install-command:
+        description: >-
+          Dependency install command. Empty = install requirements.txt and requirements-dev.txt when present.
+        type: string
+        default: ""
+      mypy:
+        description: >-
+          Run mypy when a config exists (mypy.ini, .mypy.ini, [tool.mypy] in pyproject.toml or [mypy] in setup.cfg).
+        type: boolean
+        default: true
+      mypy-args:
+        description: Arguments passed to mypy.
+        type: string
+        default: .
+      test-command:
+        description: >-
+          Test command; must record coverage data (.coverage). Empty = coverage run -m unittest discover
+          (start directory tests/ when it exists, otherwise the project root).
+        type: string
+        default: ""
+      coverage-min:
+        description: Minimum line coverage in percent; 0 disables the gate.
+        type: number
+        default: 80
+      ruff-version:
+        description: ruff version to install.
+        type: string
+        default: 0.16.9
+      mypy-version:
+        description: mypy version to install.
+        type: string
+        default: 2.3.1
+      coverage-version:
+        description: coverage.py version to install.
+        type: string
+        default: 7.16.2
+      runs-on:
+        description: Runner label.
+        type: string
+        default: ubuntu-latest
+    secrets:
+      shared-ci-token:
+        description: >-
+          Token that can read this shared-CI repository. Only needed while it is private;
+          public repositories are read with the default GITHUB_TOKEN.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ inputs.python-version }}
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install tools
+        env:
+          RUFF_VERSION: ${{ inputs.ruff-version }}
+          MYPY_VERSION: ${{ inputs.mypy-version }}
+          COVERAGE_VERSION: ${{ inputs.coverage-version }}
+        run: >-
+          python -m pip install --disable-pip-version-check --quiet
+          "ruff==$RUFF_VERSION" "mypy==$MYPY_VERSION" "coverage[toml]==$COVERAGE_VERSION"
+
+      - name: Install dependencies
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+        run: |
+          if [[ -n "$INSTALL_COMMAND" ]]; then
+            bash -euo pipefail -c "$INSTALL_COMMAND"
+            exit 0
+          fi
+          for file in requirements.txt requirements-dev.txt; do
+            if [[ -f "$file" ]]; then
+              python -m pip install --disable-pip-version-check --quiet -r "$file"
+            fi
+          done
+
+      - name: ruff check
+        run: ruff check --output-format=github .
+
+      - name: ruff format --check
+        run: ruff format --check --diff .
+
+      - name: Detect mypy config
+        id: mypy
+        if: inputs.mypy
+        run: |
+          found=false
+          if [[ -f mypy.ini || -f .mypy.ini ]] \
+            || { [[ -f pyproject.toml ]] && grep -q '^\[tool\.mypy' pyproject.toml; } \
+            || { [[ -f setup.cfg ]] && grep -q '^\[mypy' setup.cfg; }; then
+            found=true
+          fi
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          echo "mypy config found: $found"
+
+      - name: mypy
+        if: steps.mypy.outputs.found == 'true'
+        env:
+          MYPY_ARGS: ${{ inputs.mypy-args }}
+        # MYPY_ARGS is intentionally unquoted so it may hold several arguments.
+        run: |
+          # shellcheck disable=SC2086
+          mypy --install-types --non-interactive $MYPY_ARGS
+
+      - name: Tests
+        env:
+          TEST_COMMAND: ${{ inputs.test-command }}
+        run: |
+          if [[ -n "$TEST_COMMAND" ]]; then
+            bash -euo pipefail -c "$TEST_COMMAND"
+          else
+            args=(--start-directory .)
+            if [[ -f tests/__init__.py ]]; then
+              args=(--start-directory tests --top-level-directory .)
+            elif [[ -d tests ]]; then
+              args=(--start-directory tests)
+            fi
+            python -m coverage run -m unittest discover "${args[@]}" --verbose
+          fi
+
+      - name: Coverage report
+        if: inputs.coverage-min > 0
+        run: |
+          python -m coverage report --show-missing
+          python -m coverage xml -o "$RUNNER_TEMP/coverage.xml"
+
+      # The gate lives in this repository; check it out at the exact commit of this workflow.
+      # Done after lint and tests so the extra directory never reaches them.
+      - name: Check out shared actions
+        if: inputs.coverage-min > 0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .github-shared-ci
+          sparse-checkout: actions
+          persist-credentials: false
+          token: ${{ secrets.shared-ci-token || github.token }}
+
+      - name: Coverage gate
+        if: inputs.coverage-min > 0
+        uses: ./.github-shared-ci/actions/coverage-gate
+        with:
+          file: ${{ runner.temp }}/coverage.xml
+          min: ${{ inputs.coverage-min }}
+          format: cobertura

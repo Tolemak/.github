@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<coverage version="7.16.2" timestamp="1760000000000" lines-valid="50" lines-covered="45" line-rate="0.9" branches-covered="0" branches-valid="0" branch-rate="0" complexity="0">
+  <sources><source>/app</source></sources>
+  <packages>
+    <package name="." line-rate="0.9" branch-rate="0" complexity="0">
+      <classes/>
+    </package>
+  </packages>
+</coverage>

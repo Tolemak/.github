@@ -1,0 +1,97 @@
+name: Push build branch
+description: >-
+  Publish the contents of a directory to a branch as a single parentless commit,
+  replacing whatever the branch held before. The commit author is the workflow actor.
+author: Tolemak
+
+inputs:
+  directory:
+    description: Directory whose contents become the branch root, relative to the workspace or absolute.
+    required: true
+  branch:
+    description: Branch to (re)create, e.g. build. The repository's default branch is refused.
+    required: false
+    default: build
+  message:
+    description: Commit message. Defaults to "Build <short sha> from <ref name>".
+    required: false
+    default: ""
+  repository:
+    description: Target repository as owner/name.
+    required: false
+    default: ${{ github.repository }}
+  token:
+    description: Token with contents:write on the target repository.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  sha:
+    description: SHA of the pushed commit.
+    value: ${{ steps.push.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - id: push
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ inputs.directory }}
+        TARGET_BRANCH: ${{ inputs.branch }}
+        COMMIT_MESSAGE: ${{ inputs.message }}
+        TARGET_REPOSITORY: ${{ inputs.repository }}
+        PUSH_TOKEN: ${{ inputs.token }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        ACTOR: ${{ github.actor }}
+        ACTOR_ID: ${{ github.actor_id }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "$TARGET_BRANCH" ]]; then
+          echo "::error title=Push build branch::input 'branch' must not be empty"
+          exit 1
+        fi
+        if [[ "$TARGET_REPOSITORY" == "$GITHUB_REPOSITORY" && "$TARGET_BRANCH" == "$DEFAULT_BRANCH" ]]; then
+          echo "::error title=Push build branch::refusing to overwrite the default branch '$DEFAULT_BRANCH'"
+          exit 1
+        fi
+        if [[ ! -d "$SOURCE_DIR" ]]; then
+          echo "::error title=Push build branch::directory '$SOURCE_DIR' does not exist"
+          exit 1
+        fi
+        if [[ -z "$(ls -A "$SOURCE_DIR")" ]]; then
+          echo "::error title=Push build branch::directory '$SOURCE_DIR' is empty"
+          exit 1
+        fi
+
+        message="$COMMIT_MESSAGE"
+        if [[ -z "$message" ]]; then
+          message="Build ${GITHUB_SHA::7} from ${GITHUB_REF_NAME}"
+        fi
+
+        work="$(mktemp -d "${RUNNER_TEMP:-/tmp}/push-build-branch.XXXXXX")"
+        trap 'rm -rf "$work"' EXIT
+        tar -C "$SOURCE_DIR" --exclude=./.git -cf - . | tar -C "$work" -xf -
+
+        cd "$work"
+        git init --quiet --initial-branch="$TARGET_BRANCH"
+        git add --all --force
+        GIT_AUTHOR_NAME="$ACTOR" \
+        GIT_AUTHOR_EMAIL="${ACTOR_ID}+${ACTOR}@users.noreply.github.com" \
+        GIT_COMMITTER_NAME="github-actions[bot]" \
+        GIT_COMMITTER_EMAIL="41898282+github-actions[bot]@users.noreply.github.com" \
+          git commit --quiet --no-verify --message "$message"
+
+        # Pass the token as a header so it never appears in a remote URL or in git's config on disk.
+        auth="$(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+        echo "::add-mask::$auth"
+        git -c "http.extraheader=AUTHORIZATION: basic $auth" \
+          push --force --quiet "${GITHUB_SERVER_URL}/${TARGET_REPOSITORY}.git" "HEAD:refs/heads/${TARGET_BRANCH}"
+
+        sha="$(git rev-parse HEAD)"
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        echo "Pushed $(git ls-files | wc -l) files from '$SOURCE_DIR' to ${TARGET_REPOSITORY}@${TARGET_BRANCH} as $sha"
+
+branding:
+  icon: upload-cloud
+  color: blue

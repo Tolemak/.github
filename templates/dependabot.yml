@@ -1,0 +1,53 @@
+# Copy to .github/dependabot.yml in a repository and uncomment the ecosystems it uses.
+# Reference: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+
+updates:
+  # GitHub Actions used by the repository's workflows (including SHA-pinned ones;
+  # Dependabot keeps the "# vX.Y.Z" comment in sync).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # PHP — composer.json / composer.lock
+  # - package-ecosystem: composer
+  #   directory: /
+  #   schedule:
+  #     interval: monthly
+  #   groups:
+  #     composer:
+  #       patterns: ["*"]
+  #       update-types: [minor, patch]
+
+  # Node.js — package.json / package-lock.json (add one entry per package directory, e.g. /server)
+  # - package-ecosystem: npm
+  #   directory: /
+  #   schedule:
+  #     interval: monthly
+  #   groups:
+  #     npm:
+  #       patterns: ["*"]
+  #       update-types: [minor, patch]
+
+  # Python — requirements*.txt / pyproject.toml
+  # - package-ecosystem: pip
+  #   directory: /
+  #   schedule:
+  #     interval: monthly
+  #   groups:
+  #     pip:
+  #       patterns: ["*"]
+  #       update-types: [minor, patch]
+
+  # Docker — Dockerfile / compose base images
+  # - package-ecosystem: docker
+  #   directory: /
+  #   schedule:
+  #     interval: monthly
+  #   groups:
+  #     docker:
+  #       patterns: ["*"]

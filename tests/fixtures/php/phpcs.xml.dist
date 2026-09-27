@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<ruleset name="fixture">
+    <arg name="colors"/>
+    <arg value="p"/>
+    <file>src</file>
+    <file>tests</file>
+    <rule ref="PSR12"/>
+</ruleset>

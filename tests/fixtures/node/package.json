@@ -1,0 +1,18 @@
+{
+  "name": "ci-fixture-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint --deny-warnings src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.0.2",
+    "oxlint": "1.85.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

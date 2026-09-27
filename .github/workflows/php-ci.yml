@@ -1,0 +1,246 @@
+name: PHP CI
+
+# Reusable workflow for PHP/Symfony projects:
+# composer install → composer audit → [front-end] → [pre-test command]
+# → coding standard → PHPStan → PHPUnit with pcov → coverage gate.
+
+on:
+  workflow_call:
+    inputs:
+      php-version:
+        description: PHP version passed to setup-php, e.g. "8.4". Use a matrix in the caller to test several.
+        type: string
+        default: "8.4"
+      extensions:
+        description: Comma-separated PHP extensions for setup-php, e.g. "intl, pdo_pgsql, sodium".
+        type: string
+        default: ""
+      working-directory:
+        description: Directory containing composer.json, relative to the repository root.
+        type: string
+        default: "."
+      cs-tool:
+        description: Coding-standard checker — php-cs-fixer, phpcs or none.
+        type: string
+        default: php-cs-fixer
+      phpstan:
+        description: Run vendor/bin/phpstan analyse (reads phpstan.neon[.dist]).
+        type: boolean
+        default: true
+      phpstan-level:
+        description: Overrides the PHPStan level from the config file when set, e.g. "8".
+        type: string
+        default: ""
+      composer-audit:
+        description: Run composer audit.
+        type: boolean
+        default: true
+      pre-test-command:
+        description: Shell command run after dependencies are installed and before static analysis and tests (e.g. key generation, cache warm-up, schema creation).
+        type: string
+        default: ""
+      phpunit-command:
+        description: PHPUnit binary, e.g. vendor/bin/phpunit or bin/phpunit. Coverage options are appended.
+        type: string
+        default: vendor/bin/phpunit
+      coverage-file:
+        description: Where PHPUnit writes the Clover report, relative to working-directory.
+        type: string
+        default: var/coverage/clover.xml
+      coverage-min:
+        description: Minimum line coverage in percent; 0 disables the gate.
+        type: number
+        default: 80
+      postgres-version:
+        description: >-
+          Start a PostgreSQL service of this version (e.g. "17") and export
+          DATABASE_URL=postgresql://app:app@127.0.0.1:5432/app?serverVersion=<version>&charset=utf8.
+          pdo_pgsql is added to the extensions automatically. Empty = no database.
+        type: string
+        default: ""
+      node-version:
+        description: Also build a front-end with this Node.js version (npm ci + node-scripts). Empty = no front-end.
+        type: string
+        default: ""
+      node-working-directory:
+        description: Directory containing package.json, relative to working-directory.
+        type: string
+        default: "."
+      node-scripts:
+        description: Space-separated npm scripts run after npm ci, in order. Missing scripts fail the job.
+        type: string
+        default: typecheck test build
+      runs-on:
+        description: Runner label.
+        type: string
+        default: ubuntu-latest
+    secrets:
+      shared-ci-token:
+        description: >-
+          Token that can read this shared-CI repository. Only needed while it is private;
+          public repositories are read with the default GITHUB_TOKEN.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: PHP ${{ inputs.php-version }}
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        # An empty image skips the service container.
+        image: ${{ inputs.postgres-version != '' && format('postgres:{0}', inputs.postgres-version) || '' }}
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Validate inputs
+        env:
+          CS_TOOL: ${{ inputs.cs-tool }}
+        run: |
+          case "$CS_TOOL" in
+            php-cs-fixer|phpcs|none) ;;
+            *) echo "::error title=php-ci::cs-tool must be php-cs-fixer, phpcs or none (got '$CS_TOOL')"; exit 1 ;;
+          esac
+        working-directory: .
+
+      - name: Export DATABASE_URL
+        if: inputs.postgres-version != ''
+        env:
+          POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        run: echo "DATABASE_URL=postgresql://app:app@127.0.0.1:5432/app?serverVersion=${POSTGRES_VERSION}&charset=utf8" >> "$GITHUB_ENV"
+        working-directory: .
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.postgres-version != '' && format('{0}{1}pdo_pgsql', inputs.extensions, inputs.extensions != '' && ', ' || '') || inputs.extensions }}
+          coverage: ${{ inputs.coverage-min > 0 && 'pcov' || 'none' }}
+          tools: composer:v2
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ inputs.php-version }}-${{ hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}
+          restore-keys: composer-${{ runner.os }}-${{ inputs.php-version }}-
+
+      - name: composer install
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: composer audit
+        if: inputs.composer-audit
+        run: composer audit --no-interaction
+
+      - name: Resolve front-end directory
+        id: frontend
+        if: inputs.node-version != ''
+        env:
+          NODE_DIR: ${{ inputs.node-working-directory }}
+        run: echo "dir=$(realpath "$NODE_DIR")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ steps.frontend.outputs.dir }}/package-lock.json
+
+      - name: Front-end
+        if: inputs.node-version != ''
+        working-directory: ${{ steps.frontend.outputs.dir }}
+        env:
+          NODE_SCRIPTS: ${{ inputs.node-scripts }}
+        run: |
+          npm ci --no-audit --no-fund
+          for script in $NODE_SCRIPTS; do
+            echo "::group::npm run $script"
+            npm run "$script"
+            echo "::endgroup::"
+          done
+
+      - name: Pre-test command
+        if: inputs.pre-test-command != ''
+        run: ${{ inputs.pre-test-command }}
+
+      - name: PHP CS Fixer
+        if: inputs.cs-tool == 'php-cs-fixer'
+        run: vendor/bin/php-cs-fixer check --diff --show-progress=none
+        env:
+          # Allow running on a PHP version newer than the fixer release officially supports.
+          PHP_CS_FIXER_IGNORE_ENV: "1"
+
+      - name: PHP_CodeSniffer
+        if: inputs.cs-tool == 'phpcs'
+        run: vendor/bin/phpcs
+
+      - name: PHPStan
+        if: inputs.phpstan
+        env:
+          PHPSTAN_LEVEL: ${{ inputs.phpstan-level }}
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G ${PHPSTAN_LEVEL:+--level="$PHPSTAN_LEVEL"}
+
+      - name: PHPUnit
+        env:
+          PHPUNIT: ${{ inputs.phpunit-command }}
+          COVERAGE_FILE: ${{ inputs.coverage-file }}
+          WITH_COVERAGE: ${{ inputs.coverage-min > 0 }}
+        run: |
+          # $PHPUNIT is intentionally unquoted so it may carry arguments.
+          # shellcheck disable=SC2086
+          if [[ "$WITH_COVERAGE" == "true" ]]; then
+            mkdir -p "$(dirname "$COVERAGE_FILE")"
+            $PHPUNIT --coverage-clover "$COVERAGE_FILE"
+          else
+            $PHPUNIT
+          fi
+
+      # The gate lives in this repository; check it out at the exact commit of this workflow.
+      # Done after the tests so the extra directory never reaches linters or test discovery.
+      - name: Check out shared actions
+        if: inputs.coverage-min > 0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .github-shared-ci
+          sparse-checkout: actions
+          persist-credentials: false
+          token: ${{ secrets.shared-ci-token || github.token }}
+
+      - name: Coverage gate
+        if: inputs.coverage-min > 0
+        uses: ./.github-shared-ci/actions/coverage-gate
+        with:
+          file: ${{ inputs.working-directory }}/${{ inputs.coverage-file }}
+          min: ${{ inputs.coverage-min }}
+          format: clover

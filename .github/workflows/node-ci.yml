@@ -1,0 +1,144 @@
+name: Node CI
+
+# Reusable workflow for Node.js / TypeScript packages:
+# npm ci → lint → typecheck → test → build → [coverage gate] → [upload artifact].
+# Call it once per package (e.g. "." and "server") when a repository holds several.
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version, e.g. "22" or "24".
+        type: string
+        default: "22"
+      working-directory:
+        description: Directory containing package.json and package-lock.json, relative to the repository root.
+        type: string
+        default: "."
+      install-command:
+        description: Dependency install command.
+        type: string
+        default: npm ci --no-audit --no-fund
+      lint-command:
+        description: Lint command (e.g. "npx eslint . --max-warnings 0" or "npx oxlint --deny-warnings"). Empty = skip.
+        type: string
+        default: npm run lint --if-present
+      typecheck-command:
+        description: Type-check command. Empty = skip.
+        type: string
+        default: npm run typecheck --if-present
+      test-command:
+        description: Test command; coverage thresholds belong in the test runner config (e.g. vitest.config). Empty = skip.
+        type: string
+        default: npm run test --if-present
+      build-command:
+        description: Build command. Empty = skip.
+        type: string
+        default: npm run build --if-present
+      coverage-file:
+        description: >-
+          Optional Clover or Cobertura report written by the test command, relative to working-directory
+          (e.g. coverage/cobertura-coverage.xml). When set, the coverage gate enforces coverage-min.
+        type: string
+        default: ""
+      coverage-min:
+        description: Minimum line coverage in percent for coverage-file.
+        type: number
+        default: 80
+      artifact-name:
+        description: Upload artifact-path under this name when set (e.g. "dist").
+        type: string
+        default: ""
+      artifact-path:
+        description: Path to upload, relative to working-directory.
+        type: string
+        default: dist
+      artifact-retention-days:
+        description: Days to keep the uploaded artifact.
+        type: number
+        default: 7
+      runs-on:
+        description: Runner label.
+        type: string
+        default: ubuntu-latest
+    secrets:
+      shared-ci-token:
+        description: >-
+          Token that can read this shared-CI repository. Only needed while it is private;
+          public repositories are read with the default GITHUB_TOKEN.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: Node ${{ inputs.node-version }} (${{ inputs.working-directory }})
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install
+        run: ${{ inputs.install-command }}
+
+      - name: Lint
+        if: inputs.lint-command != ''
+        run: ${{ inputs.lint-command }}
+
+      - name: Typecheck
+        if: inputs.typecheck-command != ''
+        run: ${{ inputs.typecheck-command }}
+
+      - name: Test
+        if: inputs.test-command != ''
+        run: ${{ inputs.test-command }}
+
+      - name: Build
+        if: inputs.build-command != ''
+        run: ${{ inputs.build-command }}
+
+      # The gate lives in this repository; check it out at the exact commit of this workflow.
+      # Done after lint and tests so the extra directory never reaches them.
+      - name: Check out shared actions
+        if: inputs.coverage-file != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .github-shared-ci
+          sparse-checkout: actions
+          persist-credentials: false
+          token: ${{ secrets.shared-ci-token || github.token }}
+
+      - name: Coverage gate
+        if: inputs.coverage-file != ''
+        uses: ./.github-shared-ci/actions/coverage-gate
+        with:
+          file: ${{ inputs.working-directory }}/${{ inputs.coverage-file }}
+          min: ${{ inputs.coverage-min }}
+
+      - name: Upload artifact
+        if: inputs.artifact-name != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+          if-no-files-found: error

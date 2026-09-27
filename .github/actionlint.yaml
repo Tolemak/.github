@@ -1,0 +1,7 @@
+# actionlint configuration — https://github.com/rhysd/actionlint/blob/main/docs/config.md
+paths:
+  .github/workflows/*.yml:
+    ignore:
+      # job.workflow_repository / job.workflow_sha exist on GitHub (reusable workflows use them to
+      # check out their own repository) but actionlint 1.7.12 does not know them yet.
+      - 'property "workflow_(repository|sha)" is not defined in object type'

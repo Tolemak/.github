@@ -1,0 +1,237 @@
+name: Self-test
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+
+      # shellcheck is preinstalled on ubuntu-latest, so run: scripts are checked too.
+      - name: actionlint
+        run: '"$RUNNER_TEMP/actionlint" -color'
+
+  coverage-gate-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Unit tests (oldest supported Python)
+        run: python -m unittest discover --start-directory actions/coverage-gate --verbose
+
+      - name: ruff
+        run: |
+          python -m pip install --disable-pip-version-check --quiet ruff==0.16.9
+          ruff check --output-format=github actions
+          ruff format --check --diff actions
+
+  coverage-gate-action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Clover above threshold passes
+        id: clover
+        uses: ./actions/coverage-gate
+        with:
+          file: actions/coverage-gate/testdata/clover-85.xml
+          min: 80
+
+      - name: Cobertura above threshold passes
+        id: cobertura
+        uses: ./actions/coverage-gate
+        with:
+          file: actions/coverage-gate/testdata/cobertura-90.xml
+
+      - name: Clover below threshold
+        id: low-clover
+        continue-on-error: true
+        uses: ./actions/coverage-gate
+        with:
+          file: actions/coverage-gate/testdata/clover-50.xml
+          min: 80
+
+      - name: Cobertura below threshold
+        id: low-cobertura
+        continue-on-error: true
+        uses: ./actions/coverage-gate
+        with:
+          file: actions/coverage-gate/testdata/cobertura-78.xml
+          min: 80
+
+      - name: Missing report
+        id: missing
+        continue-on-error: true
+        uses: ./actions/coverage-gate
+        with:
+          file: does-not-exist.xml
+
+      - name: Assert gate outcomes
+        env:
+          CLOVER: ${{ steps.clover.outputs.percent }}
+          COBERTURA: ${{ steps.cobertura.outputs.percent }}
+          LOW_CLOVER: ${{ steps.low-clover.outcome }}
+          LOW_CLOVER_PERCENT: ${{ steps.low-clover.outputs.percent }}
+          LOW_COBERTURA: ${{ steps.low-cobertura.outcome }}
+          MISSING: ${{ steps.missing.outcome }}
+        run: |
+          fail=0
+          check() {
+            if [[ "$2" == "$3" ]]; then echo "ok   $1 = $2"; else echo "::error::$1: expected '$3', got '$2'"; fail=1; fi
+          }
+          check "clover percent" "$CLOVER" "85.00"
+          check "cobertura percent" "$COBERTURA" "90.00"
+          check "clover 50% outcome" "$LOW_CLOVER" "failure"
+          check "clover 50% percent" "$LOW_CLOVER_PERCENT" "50.00"
+          check "cobertura 78% outcome" "$LOW_COBERTURA" "failure"
+          check "missing report outcome" "$MISSING" "failure"
+          exit "$fail"
+
+  php:
+    name: php-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php-version: "8.4"
+            cs-tool: php-cs-fixer
+            postgres-version: "17"
+            node-version: "22"
+          - php-version: "8.3"
+            cs-tool: phpcs
+            postgres-version: ""
+            node-version: ""
+    uses: ./.github/workflows/php-ci.yml
+    with:
+      php-version: ${{ matrix.php-version }}
+      extensions: intl, mbstring
+      working-directory: tests/fixtures/php
+      cs-tool: ${{ matrix.cs-tool }}
+      phpstan-level: "8"
+      pre-test-command: mkdir -p var && php -r 'echo "pre-test command ran", PHP_EOL;'
+      postgres-version: ${{ matrix.postgres-version }}
+      node-version: ${{ matrix.node-version }}
+      node-working-directory: ../node
+      node-scripts: typecheck build
+
+  node:
+    name: node-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22", "24"]
+    uses: ./.github/workflows/node-ci.yml
+    with:
+      node-version: ${{ matrix.node-version }}
+      working-directory: tests/fixtures/node
+      coverage-file: coverage/cobertura-coverage.xml
+      artifact-name: ${{ matrix.node-version == '22' && 'node-fixture-dist' || '' }}
+
+  python:
+    name: python-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      python-version: ${{ matrix.python-version }}
+      working-directory: tests/fixtures/python
+
+  push-build-branch:
+    needs: node
+    # Pull requests from forks get a read-only token.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      BRANCH: self-test/build-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-fixture-dist
+          path: ${{ runner.temp }}/dist
+
+      - name: Push build branch
+        id: push
+        uses: ./actions/push-build-branch
+        with:
+          directory: ${{ runner.temp }}/dist
+          branch: ${{ env.BRANCH }}
+          message: Self-test build ${{ github.run_id }}
+
+      - name: Verify pushed branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ steps.push.outputs.sha }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          work="$(mktemp -d)"
+          git -C "$work" init --quiet
+          git -C "$work" -c "http.extraheader=AUTHORIZATION: basic $auth" \
+            fetch --quiet "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "refs/heads/${BRANCH}"
+          cd "$work"
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_SHA"
+          test "$(git rev-list --count FETCH_HEAD)" = 1
+          test -z "$(git log -1 --format=%P FETCH_HEAD)"
+          test "$(git log -1 --format=%an FETCH_HEAD)" = "$GITHUB_ACTOR"
+          test "$(git log -1 --format=%s FETCH_HEAD)" = "Self-test build ${GITHUB_RUN_ID}"
+          git ls-tree --name-only FETCH_HEAD | grep -qx price.js
+          echo "Branch $BRANCH holds a single parentless commit by $GITHUB_ACTOR with the build output."
+
+      - name: Delete test branch
+        if: always() && steps.push.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" \
+            push --quiet "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" --delete "refs/heads/${BRANCH}"
+
