@@ -4,7 +4,7 @@ Reusable GitHub Actions workflows and default community files for my repositorie
 
 [Polska wersja](README.pl.md)
 
-- `.github/workflows/php-ci.yml`: Composer audit, PHP CS Fixer or PHPCS, PHPStan, PHPUnit with a coverage gate, optional PostgreSQL and front-end build
+- `.github/workflows/php-ci.yml`: Composer audit, PHP CS Fixer or PHPCS, PHPStan, PHPUnit with a coverage gate, optional PostgreSQL, MongoDB and Redis services and front-end build
 - `.github/workflows/node-ci.yml`: lint, typecheck, tests with a coverage gate, build
 - `.github/workflows/python-ci.yml`: ruff, mypy, tests with a coverage gate
 - `actions/coverage-gate` and `actions/push-build-branch`: composite actions used by the workflows

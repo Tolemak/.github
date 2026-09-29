@@ -4,7 +4,7 @@ Wspólne workflowy GitHub Actions i domyślne pliki społeczności dla moich rep
 
 [English version](README.md)
 
-- `.github/workflows/php-ci.yml`: audyt Composera, PHP CS Fixer albo PHPCS, PHPStan, PHPUnit z progiem pokrycia, opcjonalnie PostgreSQL i build frontu
+- `.github/workflows/php-ci.yml`: audyt Composera, PHP CS Fixer albo PHPCS, PHPStan, PHPUnit z progiem pokrycia, opcjonalnie serwisy PostgreSQL, MongoDB i Redis oraz build frontu
 - `.github/workflows/node-ci.yml`: lint, typecheck, testy z progiem pokrycia, build
 - `.github/workflows/python-ci.yml`: ruff, mypy, testy z progiem pokrycia
 - `actions/coverage-gate` i `actions/push-build-branch`: akcje złożone używane przez workflowy

@@ -140,6 +140,7 @@ jobs:
             postgres-version: ""
             node-version: ""
             mongodb-version: "5.0"
+            redis-version: "7-alpine"
             env: |
               FIXTURE_FLAG=on
               FIXTURE_URI=mongodb://127.0.0.1:27017/fixture
@@ -153,8 +154,10 @@ jobs:
       pre-test-command: >-
         mkdir -p var && php -r 'echo "pre-test command ran", PHP_EOL;'
         && { [ -z "${{ matrix.mongodb-version }}" ] || { [ "$FIXTURE_FLAG" = on ] && timeout 30 bash -c 'until echo > /dev/tcp/127.0.0.1/27017; do sleep 1; done'; }; }
+        && { [ -z "${{ matrix.redis-version }}" ] || timeout 30 bash -c 'until echo > /dev/tcp/127.0.0.1/6379; do sleep 1; done'; }
       postgres-version: ${{ matrix.postgres-version }}
       mongodb-version: ${{ matrix.mongodb-version || '' }}
+      redis-version: ${{ matrix.redis-version || '' }}
       env: ${{ matrix.env || '' }}
       node-version: ${{ matrix.node-version }}
       node-working-directory: ../node
@@ -171,7 +174,9 @@ jobs:
       node-version: ${{ matrix.node-version }}
       working-directory: tests/fixtures/node
       coverage-file: coverage/cobertura-coverage.xml
+      build-command: npm run build && echo "Options -Indexes" > dist/.htaccess
       artifact-name: ${{ matrix.node-version == '22' && 'node-fixture-dist' || '' }}
+      artifact-include-hidden-files: true
 
   python:
     name: python-ci
@@ -231,6 +236,7 @@ jobs:
           test "$(git log -1 --format=%an FETCH_HEAD)" = "$GITHUB_ACTOR"
           test "$(git log -1 --format=%s FETCH_HEAD)" = "Self-test build ${GITHUB_RUN_ID}"
           git ls-tree --name-only FETCH_HEAD | grep -qx price.js
+          git ls-tree --name-only FETCH_HEAD | grep -qx .htaccess
           echo "Branch $BRANCH holds a single parentless commit by $GITHUB_ACTOR with the build output."
 
       - name: Delete test branch

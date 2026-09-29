@@ -61,6 +61,10 @@ on:
         description: Days to keep the uploaded artifact.
         type: number
         default: 7
+      artifact-include-hidden-files:
+        description: Also upload dotfiles such as .htaccess (upload-artifact skips them by default).
+        type: boolean
+        default: false
       runs-on:
         description: Runner label.
         type: string
@@ -149,4 +153,5 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
           retention-days: ${{ inputs.artifact-retention-days }}
+          include-hidden-files: ${{ inputs.artifact-include-hidden-files }}
           if-no-files-found: error

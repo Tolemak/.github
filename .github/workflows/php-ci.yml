@@ -55,6 +55,10 @@ on:
         description: Start a MongoDB service of this version (e.g. "5.0") on 127.0.0.1:27017. Empty = none.
         type: string
         default: ""
+      redis-version:
+        description: Start a Redis service of this image tag (e.g. "7-alpine") on 127.0.0.1:6379. Empty = none.
+        type: string
+        default: ""
       env:
         description: >-
           Extra environment variables for every later step, one KEY=VALUE per line
@@ -121,6 +125,15 @@ jobs:
         image: ${{ inputs.mongodb-version != '' && format('mongo:{0}', inputs.mongodb-version) || '' }}
         ports:
           - 27017:27017
+      redis:
+        image: ${{ inputs.redis-version != '' && format('redis:{0}', inputs.redis-version) || '' }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     defaults:
       run:
