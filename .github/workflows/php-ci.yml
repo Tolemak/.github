@@ -87,7 +87,7 @@ on:
       runs-on:
         description: Runner label.
         type: string
-        default: ubuntu-latest
+        default: ubuntu-24.04
     secrets:
       shared-ci-token:
         description: >-
