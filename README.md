@@ -20,3 +20,7 @@ jobs:
 
 Inputs and their defaults are listed at the top of each workflow file. Pin `@v1` or a full commit SHA.
 `templates/dependabot.yml` is a starting point for `.github/dependabot.yml`.
+
+## Versioning
+
+Releases are annotated tags `vMAJOR.MINOR.PATCH` on `main`. The `Move major tag` workflow points the moving `vMAJOR` tag at the newest release of that major when such a tag is pushed. To repair or backfill it, run the workflow manually with the release tag, for example `v1.3.1`.
