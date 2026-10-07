@@ -20,3 +20,7 @@ jobs:
 
 Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v1` albo pełny SHA commita.
 `templates/dependabot.yml` to punkt wyjścia dla `.github/dependabot.yml`.
+
+## Wersjonowanie
+
+Wydania to tagi adnotowane `vMAJOR.MINOR.PATCH` na `main`. Workflow `Move major tag` po wypchnięciu takiego tagu przesuwa ruchomy tag `vMAJOR` na najnowsze wydanie danego majora. Aby go naprawić lub uzupełnić, uruchom workflow ręcznie z tagiem wydania, np. `v1.3.1`.
