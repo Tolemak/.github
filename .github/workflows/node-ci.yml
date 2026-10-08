@@ -23,6 +23,14 @@ on:
         description: Run npm audit after installing (fails on any known vulnerability).
         type: boolean
         default: true
+      audit-omit-dev:
+        description: Skip devDependencies in npm audit (npm audit --omit=dev).
+        type: boolean
+        default: false
+      audit-level:
+        description: Lowest severity that fails npm audit - low, moderate, high or critical.
+        type: string
+        default: low
       lint-command:
         description: Lint command (e.g. "npx eslint . --max-warnings 0" or "npx oxlint --deny-warnings"). Empty = skip.
         type: string
@@ -68,7 +76,7 @@ on:
       runs-on:
         description: Runner label.
         type: string
-        default: ubuntu-latest
+        default: ubuntu-24.04
     secrets:
       shared-ci-token:
         description: >-
@@ -108,7 +116,15 @@ jobs:
 
       - name: npm audit
         if: inputs.audit
-        run: npm audit
+        env:
+          AUDIT_LEVEL: ${{ inputs.audit-level }}
+          AUDIT_OMIT_DEV: ${{ inputs.audit-omit-dev }}
+        run: |
+          args=(--audit-level="$AUDIT_LEVEL")
+          if [[ "$AUDIT_OMIT_DEV" == "true" ]]; then
+            args+=(--omit=dev)
+          fi
+          npm audit "${args[@]}"
 
       - name: Lint
         if: inputs.lint-command != ''

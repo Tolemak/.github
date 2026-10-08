@@ -31,6 +31,10 @@ on:
         description: Overrides the PHPStan level from the config file when set, e.g. "8".
         type: string
         default: ""
+      composer-validate:
+        description: Run composer validate --strict before installing.
+        type: boolean
+        default: false
       composer-audit:
         description: Run composer audit.
         type: boolean
@@ -195,6 +199,10 @@ jobs:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ runner.os }}-${{ inputs.php-version }}-${{ hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}
           restore-keys: composer-${{ runner.os }}-${{ inputs.php-version }}-
+
+      - name: composer validate
+        if: inputs.composer-validate
+        run: composer validate --strict --no-interaction
 
       - name: composer install
         run: composer install --no-interaction --no-progress --prefer-dist

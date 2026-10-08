@@ -20,7 +20,7 @@ env:
 
 jobs:
   actionlint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,12 +35,11 @@ jobs:
           echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
 
-      # shellcheck is preinstalled on ubuntu-latest, so run: scripts are checked too.
       - name: actionlint
         run: '"$RUNNER_TEMP/actionlint" -color'
 
   coverage-gate-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,7 +60,7 @@ jobs:
           ruff format --check --diff actions
 
   coverage-gate-action:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,11 +188,17 @@ jobs:
       python-version: ${{ matrix.python-version }}
       working-directory: tests/fixtures/python
 
+  repo:
+    name: repo-ci
+    uses: ./.github/workflows/repo-ci.yml
+    with:
+      docker-context: tests/fixtures/docker
+
   push-build-branch:
     needs: node
     # Pull requests from forks get a read-only token.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
