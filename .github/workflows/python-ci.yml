@@ -19,6 +19,14 @@ on:
           Dependency install command. Empty = install requirements.txt and requirements-dev.txt when present.
         type: string
         default: ""
+      pip-audit:
+        description: Run pip-audit against the installed environment and fail on known vulnerabilities.
+        type: boolean
+        default: false
+      pip-audit-version:
+        description: pip-audit version to install when pip-audit is enabled.
+        type: string
+        default: 2.9.0
       mypy:
         description: >-
           Run mypy when a config exists (mypy.ini, .mypy.ini, [tool.mypy] in pyproject.toml or [mypy] in setup.cfg).
@@ -53,7 +61,7 @@ on:
       runs-on:
         description: Runner label.
         type: string
-        default: ubuntu-latest
+        default: ubuntu-24.04
     secrets:
       shared-ci-token:
         description: >-
@@ -86,6 +94,17 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
 
+      - name: Locate pip cache
+        id: pip-cache
+        run: echo "dir=$(python -m pip cache dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pip downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory), format('{0}/pyproject.toml', inputs.working-directory)) }}
+          restore-keys: pip-${{ runner.os }}-${{ inputs.python-version }}-
+
       - name: Install tools
         env:
           RUFF_VERSION: ${{ inputs.ruff-version }}
@@ -108,6 +127,14 @@ jobs:
               python -m pip install --disable-pip-version-check --quiet -r "$file"
             fi
           done
+
+      - name: pip-audit
+        if: inputs.pip-audit
+        env:
+          PIP_AUDIT_VERSION: ${{ inputs.pip-audit-version }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet "pip-audit==$PIP_AUDIT_VERSION"
+          pip-audit --local --progress-spinner off
 
       - name: ruff check
         run: ruff check --output-format=github .
