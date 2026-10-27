@@ -241,7 +241,9 @@ jobs:
 
       - name: Pre-test command
         if: inputs.pre-test-command != ''
-        run: ${{ inputs.pre-test-command }}
+        env:
+          PRE_TEST_COMMAND: ${{ inputs.pre-test-command }}
+        run: eval "$PRE_TEST_COMMAND"
 
       - name: PHP CS Fixer
         if: inputs.cs-tool == 'php-cs-fixer'
