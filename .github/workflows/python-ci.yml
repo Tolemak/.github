@@ -102,7 +102,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pip-cache.outputs.dir }}
-          key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory), format('{0}/pyproject.toml', inputs.working-directory)) }}
+          key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory), format('{0}/requirements/*.txt', inputs.working-directory), format('{0}/constraints*.txt', inputs.working-directory), format('{0}/pyproject.toml', inputs.working-directory), format('{0}/setup.cfg', inputs.working-directory), format('{0}/setup.py', inputs.working-directory), format('{0}/uv.lock', inputs.working-directory), format('{0}/poetry.lock', inputs.working-directory), format('{0}/pdm.lock', inputs.working-directory), format('{0}/Pipfile.lock', inputs.working-directory)) }}
           restore-keys: pip-${{ runner.os }}-${{ inputs.python-version }}-
 
       - name: Install tools
