@@ -112,7 +112,9 @@ jobs:
           cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
       - name: Install
-        run: ${{ inputs.install-command }}
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+        run: eval "$INSTALL_COMMAND"
 
       - name: npm audit
         if: inputs.audit
@@ -128,19 +130,27 @@ jobs:
 
       - name: Lint
         if: inputs.lint-command != ''
-        run: ${{ inputs.lint-command }}
+        env:
+          LINT_COMMAND: ${{ inputs.lint-command }}
+        run: eval "$LINT_COMMAND"
 
       - name: Typecheck
         if: inputs.typecheck-command != ''
-        run: ${{ inputs.typecheck-command }}
+        env:
+          TYPECHECK_COMMAND: ${{ inputs.typecheck-command }}
+        run: eval "$TYPECHECK_COMMAND"
 
       - name: Test
         if: inputs.test-command != ''
-        run: ${{ inputs.test-command }}
+        env:
+          TEST_COMMAND: ${{ inputs.test-command }}
+        run: eval "$TEST_COMMAND"
 
       - name: Build
         if: inputs.build-command != ''
-        run: ${{ inputs.build-command }}
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: eval "$BUILD_COMMAND"
 
       # The gate lives in this repository; check it out at the exact commit of this workflow.
       # Done after lint and tests so the extra directory never reaches them.
