@@ -10,9 +10,9 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "5.0.2",
+    "@vitest/coverage-v8": "5.0.5",
     "oxlint": "1.85.0",
     "typescript": "7.0.2",
-    "vitest": "5.0.2"
+    "vitest": "5.0.5"
   }
 }
