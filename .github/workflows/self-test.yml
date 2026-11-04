@@ -124,6 +124,31 @@ jobs:
           check "missing report outcome" "$MISSING" "failure"
           exit "$fail"
 
+  readme-check-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: README style check unit tests
+        run: bash actions/readme-check/test.sh
+
+  readme-check-action:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check this repository README style
+        uses: ./actions/readme-check
+        with:
+          directory: .
+          status-done: "true"
+
   php:
     name: php-ci
     strategy:

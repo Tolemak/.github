@@ -73,6 +73,10 @@ on:
         description: Also upload dotfiles such as .htaccess (upload-artifact skips them by default).
         type: boolean
         default: false
+      readme-check:
+        description: Check README.md and README.pl.md against the house style.
+        type: boolean
+        default: true
       runs-on:
         description: Runner label.
         type: string
@@ -181,3 +185,42 @@ jobs:
           retention-days: ${{ inputs.artifact-retention-days }}
           include-hidden-files: ${{ inputs.artifact-include-hidden-files }}
           if-no-files-found: error
+
+  readme:
+    if: inputs.readme-check
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out shared actions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .github-shared-ci
+          sparse-checkout: actions
+          persist-credentials: false
+          token: ${{ secrets.shared-ci-token || github.token }}
+
+      - name: Detect status-done topic
+        id: topic
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if done="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.topics | index("status-done") != null' 2>/dev/null)"; then
+            echo "done=$done" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Could not read repository topics; treating status-done as false"
+            echo "done=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check README style
+        uses: ./.github-shared-ci/actions/readme-check
+        with:
+          directory: .
+          status-done: ${{ steps.topic.outputs.done }}
