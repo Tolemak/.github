@@ -1,14 +1,16 @@
 # .github
 
-Wspólne workflowy GitHub Actions i domyślne pliki społeczności dla moich repozytoriów.
+[![status: done](https://img.shields.io/badge/status-done-blue)](https://github.com/Tolemak/.github)
 
 [English version](README.md)
+
+Wspólne workflowy GitHub Actions i domyślne pliki społeczności dla moich repozytoriów.
 
 - `.github/workflows/php-ci.yml`: audyt Composera, PHP CS Fixer albo PHPCS, PHPStan, PHPUnit z progiem pokrycia, opcjonalnie serwisy PostgreSQL, MongoDB i Redis oraz build frontu
 - `.github/workflows/node-ci.yml`: lint, typecheck, testy z progiem pokrycia, build
 - `.github/workflows/python-ci.yml`: ruff, mypy, testy z progiem pokrycia
 - `.github/workflows/repo-ci.yml`: skan sekretów gitleaks, actionlint, build Dockera bez push (pomijany bez Dockerfile); shellcheck jest preinstalowany na `ubuntu-24.04`, więc actionlint sprawdza też skrypty `run:`
-- `actions/coverage-gate` i `actions/push-build-branch`: akcje złożone używane przez workflowy
+- `actions/coverage-gate`, `actions/push-build-branch` i `actions/readme-check`: akcje złożone używane przez workflowy
 
 ```yaml
 jobs:
@@ -19,7 +21,7 @@ jobs:
       coverage-min: 80
 ```
 
-Dodatkowe kontrole są domyślnie wyłączone, by istniejące repozytoria działały bez zmian: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` i `audit-level` (node-ci). Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
+Dodatkowe kontrole są domyślnie wyłączone, by istniejące repozytoria działały bez zmian: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` i `audit-level` (node-ci). Wejście `readme-check` jest domyślnie włączone. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
 
 Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v1` albo pełny SHA commita.
 `templates/dependabot.yml` to punkt wyjścia dla `.github/dependabot.yml`.

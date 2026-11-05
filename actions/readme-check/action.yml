@@ -1,0 +1,26 @@
+name: README style check
+description: Check the English and Polish README files against the house style.
+author: Tolemak
+
+inputs:
+  directory:
+    description: Directory containing README.md and README.pl.md.
+    required: false
+    default: .
+  status-done:
+    description: "Require the status: done badge."
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+        INPUT_STATUS_DONE: ${{ inputs.status-done }}
+      run: bash "$GITHUB_ACTION_PATH/readme-check.sh" "$INPUT_DIRECTORY"
+
+branding:
+  icon: book-open
+  color: blue

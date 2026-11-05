@@ -1,14 +1,16 @@
 # .github
 
-Reusable GitHub Actions workflows and default community files for my repositories.
+[![status: done](https://img.shields.io/badge/status-done-blue)](https://github.com/Tolemak/.github)
 
 [Polska wersja](README.pl.md)
+
+Reusable GitHub Actions workflows and default community files for my repositories.
 
 - `.github/workflows/php-ci.yml`: Composer audit, PHP CS Fixer or PHPCS, PHPStan, PHPUnit with a coverage gate, optional PostgreSQL, MongoDB and Redis services and front-end build
 - `.github/workflows/node-ci.yml`: lint, typecheck, tests with a coverage gate, build
 - `.github/workflows/python-ci.yml`: ruff, mypy, tests with a coverage gate
 - `.github/workflows/repo-ci.yml`: gitleaks secret scan, actionlint, Docker build without push (skipped when there is no Dockerfile); shellcheck is preinstalled on `ubuntu-24.04`, so actionlint also checks `run:` scripts
-- `actions/coverage-gate` and `actions/push-build-branch`: composite actions used by the workflows
+- `actions/coverage-gate`, `actions/push-build-branch` and `actions/readme-check`: composite actions used by the workflows
 
 ```yaml
 jobs:
@@ -19,7 +21,7 @@ jobs:
       coverage-min: 80
 ```
 
-Optional checks are off by default so existing callers keep working: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` and `audit-level` (node-ci). All workflows default to the pinned `ubuntu-24.04` runner; override `runs-on` to move to a newer image deliberately.
+Optional checks are off by default so existing callers keep working: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` and `audit-level` (node-ci). The `readme-check` input is on by default. All workflows default to the pinned `ubuntu-24.04` runner; override `runs-on` to move to a newer image deliberately.
 
 Inputs and their defaults are listed at the top of each workflow file. Pin `@v1` or a full commit SHA.
 `templates/dependabot.yml` is a starting point for `.github/dependabot.yml`.
