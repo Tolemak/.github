@@ -8,7 +8,7 @@ inputs:
     required: false
     default: .
   status-done:
-    description: Require the status: done badge.
+    description: "Require the status: done badge."
     required: false
     default: "false"
 
