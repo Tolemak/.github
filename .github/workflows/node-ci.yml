@@ -57,6 +57,16 @@ on:
         description: Minimum line coverage in percent for coverage-file.
         type: number
         default: 80
+      coverage-artifact:
+        description: Upload coverage reports under this artifact name; requires coverage-file or coverage-artifact-path.
+        type: string
+        default: ""
+      coverage-artifact-path:
+        description: >-
+          Coverage reports to upload instead of coverage-file, relative to the repository root
+          (upload-artifact path syntax, e.g. "**/coverage/cobertura-coverage.xml").
+        type: string
+        default: ""
       artifact-name:
         description: Upload artifact-path under this name when set (e.g. "dist").
         type: string
@@ -175,6 +185,21 @@ jobs:
         with:
           file: ${{ inputs.working-directory }}/${{ inputs.coverage-file }}
           min: ${{ inputs.coverage-min }}
+
+      - name: Validate coverage artifact
+        if: inputs.coverage-artifact != '' && inputs.coverage-file == '' && inputs.coverage-artifact-path == ''
+        run: |
+          echo "::error::coverage-artifact requires coverage-file or coverage-artifact-path"
+          exit 1
+
+      - name: Upload coverage
+        if: inputs.coverage-artifact != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.coverage-artifact }}
+          path: ${{ inputs.coverage-artifact-path || format('{0}/{1}', inputs.working-directory, inputs.coverage-file) }}
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Upload artifact
         if: inputs.artifact-name != ''

@@ -198,6 +198,7 @@ jobs:
       node-version: ${{ matrix.node-version }}
       working-directory: tests/fixtures/node
       coverage-file: coverage/cobertura-coverage.xml
+      coverage-artifact: ${{ matrix.node-version == '22' && 'coverage-node' || '' }}
       build-command: npm run build && echo "Options -Indexes" > dist/.htaccess
       artifact-name: ${{ matrix.node-version == '22' && 'node-fixture-dist' || '' }}
       artifact-include-hidden-files: true
@@ -212,6 +213,7 @@ jobs:
     with:
       python-version: ${{ matrix.python-version }}
       working-directory: tests/fixtures/python
+      coverage-artifact: ${{ matrix.python-version == '3.11' && 'coverage-python' || '' }}
 
   repo:
     name: repo-ci
@@ -279,3 +281,112 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $auth" \
             push --quiet "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" --delete "refs/heads/${BRANCH}"
 
+  quality-gate-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: actions/quality-gate/requirements.txt
+
+      - name: Install tools
+        run: python -m pip install -r actions/quality-gate/requirements.txt coverage==7.16.2
+
+      - name: Discover unit tests in every action
+        run: |
+          for directory in actions/*; do
+            if compgen -G "$directory/test_*.py" > /dev/null; then
+              python -m coverage run --append --source=actions/quality-gate,actions/coverage-gate -m unittest discover --start-directory "$directory" --verbose
+            fi
+          done
+          python -m coverage xml -o "$RUNNER_TEMP/quality-gate-coverage.xml"
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-quality-gate
+          path: ${{ runner.temp }}/quality-gate-coverage.xml
+          retention-days: 1
+          if-no-files-found: error
+
+  quality-gate:
+    if: ${{ !cancelled() }}
+    needs: [node, python, quality-gate-unit]
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      needs: ${{ toJSON(needs) }}
+      exclude: actions/quality-gate/testdata/**
+      semgrep-exclude-rules: use-defused-xml-parse
+
+  quality-gate-action:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [semgrep, duplication, new-clones, complexity, diff-coverage, coverage-scope, gitleaks, actionlint, needs]
+        expected: [failure, success]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Build temporary case
+        id: fixtures
+        env:
+          CASE: ${{ matrix.case }}
+          EXPECTED: ${{ matrix.expected }}
+        run: python actions/quality-gate/testdata/create_cases.py
+
+      - name: Evaluate case
+        id: negative
+        continue-on-error: true
+        uses: ./actions/quality-gate
+        with:
+          path: ${{ steps.fixtures.outputs.path }}
+          base: ${{ steps.fixtures.outputs.base }}
+          gitleaks: ${{ matrix.case == 'gitleaks' }}
+          actionlint: ${{ matrix.case == 'actionlint' }}
+          semgrep: ${{ matrix.case == 'semgrep' }}
+          duplication: ${{ matrix.case == 'duplication' }}
+          duplication-max: 0
+          duplication-new-clones: ${{ matrix.case == 'new-clones' }}
+          complexity-max: ${{ matrix.case == 'complexity' && 3 || 0 }}
+          diff-coverage-min: ${{ (matrix.case == 'diff-coverage' || matrix.case == 'coverage-scope') && 80 || 0 }}
+          coverage-dir: ${{ steps.fixtures.outputs.path }}/reports
+          needs: ${{ matrix.case == 'needs' && matrix.expected == 'failure' && '{"failed":{"result":"failure"}}' || '{}' }}
+
+      - name: Assert independent failure
+        env:
+          CASE: ${{ matrix.case }}
+          EXPECTED: ${{ matrix.expected }}
+          OUTCOME: ${{ steps.negative.outcome }}
+          RESULTS: ${{ toJSON(steps.negative.outputs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          case = os.environ["CASE"]
+          key = {"new-clones": "duplication-new-clones"}.get(case, case)
+          results = json.loads(os.environ["RESULTS"])
+          assert os.environ["OUTCOME"] == os.environ["EXPECTED"], results
+          assert results[key] == os.environ["EXPECTED"], results
+          assert results["tools"] == "success", results
+          for name, outcome in results.items():
+              if name != key:
+                  assert outcome in {"success", "skipped"}, (name, outcome)
+          PY
