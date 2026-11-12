@@ -18,10 +18,11 @@ jobs:
     uses: Tolemak/.github/.github/workflows/node-ci.yml@v1
     with:
       node-version: "24"
+      coverage-file: coverage/cobertura-coverage.xml
       coverage-min: 80
 ```
 
-Optional checks are off by default so existing callers keep working: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` and `audit-level` (node-ci). The `readme-check` input is on by default. All workflows default to the pinned `ubuntu-24.04` runner; override `runs-on` to move to a newer image deliberately.
+Optional checks are off by default so existing callers keep working: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` and `audit-level` (node-ci). The `readme-check` input is on by default. node-ci runs `npm run lint` and `npm run test` by default, so a package without a `lint` or `test` script fails; pass `lint-command: ""` or `test-command: ""` to skip either step on purpose. All workflows default to the pinned `ubuntu-24.04` runner; override `runs-on` to move to a newer image deliberately.
 
 Inputs and their defaults are listed at the top of each workflow file. Pin `@v1` or a full commit SHA.
 `templates/dependabot.yml` is a starting point for `.github/dependabot.yml`.
