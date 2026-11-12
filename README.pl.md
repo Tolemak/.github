@@ -18,10 +18,11 @@ jobs:
     uses: Tolemak/.github/.github/workflows/node-ci.yml@v1
     with:
       node-version: "24"
+      coverage-file: coverage/cobertura-coverage.xml
       coverage-min: 80
 ```
 
-Dodatkowe kontrole są domyślnie wyłączone, by istniejące repozytoria działały bez zmian: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` i `audit-level` (node-ci). Wejście `readme-check` jest domyślnie włączone. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
+Dodatkowe kontrole są domyślnie wyłączone, by istniejące repozytoria działały bez zmian: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` i `audit-level` (node-ci). Wejście `readme-check` jest domyślnie włączone. node-ci domyślnie uruchamia `npm run lint` i `npm run test`, więc pakiet bez skryptu `lint` albo `test` nie przechodzi; `lint-command: ""` albo `test-command: ""` świadomie pomija dany krok. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
 
 Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v1` albo pełny SHA commita.
 `templates/dependabot.yml` to punkt wyjścia dla `.github/dependabot.yml`.
