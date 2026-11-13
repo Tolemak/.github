@@ -96,10 +96,12 @@ class CoverageTests(unittest.TestCase):
             self.assertEqual(evaluate(repo.root, base, repo.root / "missing", 80, ("src/*.ts",)), 0)
             self.assertEqual(evaluate(repo.root, base, repo.root / "missing", 80, exclude="src/**,generated/**"), 0)
 
-    def test_typescript_declarations_need_no_coverage(self):
+    def test_declarations_and_tool_configs_need_no_coverage(self):
         with GitRepository() as repo:
             base = repo.commit()
             repo.write("src/global.d.ts", "declare const value: number;\n")
+            repo.write("vitest.config.ts", "export default {};\n")
+            repo.write("packages/config/eslint.config.js", "export default [];\n")
             repo.commit()
             self.assertEqual(evaluate(repo.root, base, repo.root / "missing", 80), 0)
 
