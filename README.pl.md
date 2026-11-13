@@ -10,21 +10,23 @@ Wspólne workflowy GitHub Actions i domyślne pliki społeczności dla moich rep
 - `.github/workflows/node-ci.yml`: lint, typecheck, testy z progiem pokrycia, build
 - `.github/workflows/python-ci.yml`: ruff, mypy, testy z progiem pokrycia
 - `.github/workflows/repo-ci.yml`: skan sekretów gitleaks, actionlint, build Dockera bez push (pomijany bez Dockerfile); shellcheck jest preinstalowany na `ubuntu-24.04`, więc actionlint sprawdza też skrypty `run:`
+- `.github/workflows/quality-gate.yml`: wspólna bramka sekretów, bezpieczeństwa, duplikacji, złożoności nowego kodu, pokrycia zmian i wyników wymaganych zadań
+- `actions/quality-gate`: akcja złożona z osobnymi wynikami kontroli i podsumowaniem zadania
 - `actions/coverage-gate`, `actions/push-build-branch` i `actions/readme-check`: akcje złożone używane przez workflowy
 
 ```yaml
 jobs:
   ci:
-    uses: Tolemak/.github/.github/workflows/node-ci.yml@v1
+    uses: Tolemak/.github/.github/workflows/node-ci.yml@v2
     with:
       node-version: "24"
       coverage-file: coverage/cobertura-coverage.xml
       coverage-min: 80
 ```
 
-Dodatkowe kontrole są domyślnie wyłączone, by istniejące repozytoria działały bez zmian: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` i `audit-level` (node-ci). Wejście `readme-check` jest domyślnie włączone. node-ci domyślnie uruchamia `npm run lint` i `npm run test`, więc pakiet bez skryptu `lint` albo `test` nie przechodzi; `lint-command: ""` albo `test-command: ""` świadomie pomija dany krok. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
+`composer-validate` (php-ci) i `audit-omit-dev` (node-ci) są domyślnie wyłączone. `pip-audit` (python-ci) i `readme-check` są domyślnie włączone; `audit-level` (node-ci) ma domyślną wartość `low`. node-ci domyślnie uruchamia `npm run lint` i `npm run test`, więc pakiet bez skryptu `lint` albo `test` nie przechodzi; `lint-command: ""` albo `test-command: ""` świadomie pomija dany krok. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
 
-Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v1` albo pełny SHA commita.
+Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v2` albo pełny SHA commita.
 `templates/dependabot.yml` to punkt wyjścia dla `.github/dependabot.yml`.
 
 ## Wersjonowanie

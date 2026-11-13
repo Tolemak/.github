@@ -10,21 +10,23 @@ Reusable GitHub Actions workflows and default community files for my repositorie
 - `.github/workflows/node-ci.yml`: lint, typecheck, tests with a coverage gate, build
 - `.github/workflows/python-ci.yml`: ruff, mypy, tests with a coverage gate
 - `.github/workflows/repo-ci.yml`: gitleaks secret scan, actionlint, Docker build without push (skipped when there is no Dockerfile); shellcheck is preinstalled on `ubuntu-24.04`, so actionlint also checks `run:` scripts
+- `.github/workflows/quality-gate.yml`: reusable security, duplication, new-code complexity, diff coverage and required-job gate
+- `actions/quality-gate`: composite quality gate with per-check outcomes and a job summary
 - `actions/coverage-gate`, `actions/push-build-branch` and `actions/readme-check`: composite actions used by the workflows
 
 ```yaml
 jobs:
   ci:
-    uses: Tolemak/.github/.github/workflows/node-ci.yml@v1
+    uses: Tolemak/.github/.github/workflows/node-ci.yml@v2
     with:
       node-version: "24"
       coverage-file: coverage/cobertura-coverage.xml
       coverage-min: 80
 ```
 
-Optional checks are off by default so existing callers keep working: `composer-validate` (php-ci), `pip-audit` (python-ci), `audit-omit-dev` and `audit-level` (node-ci). The `readme-check` input is on by default. node-ci runs `npm run lint` and `npm run test` by default, so a package without a `lint` or `test` script fails; pass `lint-command: ""` or `test-command: ""` to skip either step on purpose. All workflows default to the pinned `ubuntu-24.04` runner; override `runs-on` to move to a newer image deliberately.
+`composer-validate` (php-ci) and `audit-omit-dev` (node-ci) are off by default. `pip-audit` (python-ci) and `readme-check` are on by default; `audit-level` (node-ci) defaults to `low`. node-ci runs `npm run lint` and `npm run test` by default, so a package without a `lint` or `test` script fails; pass `lint-command: ""` or `test-command: ""` to skip either step on purpose. All workflows default to the pinned `ubuntu-24.04` runner; override `runs-on` to move to a newer image deliberately.
 
-Inputs and their defaults are listed at the top of each workflow file. Pin `@v1` or a full commit SHA.
+Inputs and their defaults are listed at the top of each workflow file. Pin `@v2` or a full commit SHA.
 `templates/dependabot.yml` is a starting point for `.github/dependabot.yml`.
 
 ## Versioning

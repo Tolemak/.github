@@ -1,0 +1,287 @@
+name: Quality gate
+description: Deterministic security, duplication, new-code complexity, diff coverage and required-job checks.
+author: Tolemak
+
+inputs:
+  path:
+    description: Checkout directory to scan.
+    default: .
+  gitleaks:
+    description: Scan the full Git history for secrets.
+    default: "true"
+  actionlint:
+    description: Lint workflows when present.
+    default: "true"
+  semgrep:
+    description: Scan with the pinned local Semgrep rules.
+    default: "true"
+  semgrep-exclude-rules:
+    description: Space-separated short rule IDs to ignore.
+    default: ""
+  duplication:
+    description: Check whole-scan duplication percentage.
+    default: "true"
+  duplication-max:
+    description: Maximum whole-scan duplication percentage.
+    default: "3"
+  duplication-new-clones:
+    description: Reject any new clones relative to base.
+    default: "true"
+  duplication-formats:
+    description: Comma-separated jscpd formats to scan for duplication.
+    default: javascript,typescript,jsx,tsx,vue,python,php,kotlin,java,bash
+  complexity-max:
+    description: Maximum new or increased function CCN; 0 disables.
+    default: "15"
+  diff-coverage-min:
+    description: Minimum changed-line coverage percentage; 0 disables.
+    default: "80"
+  coverage-dir:
+    description: Coverage report directory; empty uses RUNNER_TEMP/coverage.
+    default: ""
+  coverage-paths:
+    description: Comma- or space-separated source globs that must appear in coverage reports.
+    default: "**/*.py,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.mjs,**/*.cjs,**/*.php,**/*.kt"
+  diff-cover-src-roots:
+    description: Space-separated source roots for JaCoCo or Kover.
+    default: ""
+  exclude:
+    description: Comma-separated globs added to built-in excludes.
+    default: ""
+  base:
+    description: Base commit for new-code checks; empty skips them.
+    default: ""
+  needs:
+    description: Caller toJSON(needs).
+    default: "{}"
+  allow-skipped:
+    description: Space-separated job IDs allowed to be skipped.
+    default: ""
+
+outputs:
+  tools:
+    description: Tool preparation outcome.
+    value: ${{ steps.tools.outcome }}
+  gitleaks:
+    description: Gitleaks outcome.
+    value: ${{ steps.gitleaks.outcome }}
+  actionlint:
+    description: Actionlint outcome.
+    value: ${{ steps.actionlint.outcome }}
+  semgrep:
+    description: Semgrep outcome.
+    value: ${{ steps.semgrep.outcome }}
+  duplication:
+    description: Whole-scan duplication outcome.
+    value: ${{ steps.duplication.outcome }}
+  duplication-new-clones:
+    description: New-clone outcome.
+    value: ${{ steps.new-clones.outcome }}
+  complexity:
+    description: New-code complexity outcome.
+    value: ${{ steps.complexity.outcome }}
+  diff-coverage:
+    description: Changed-line coverage outcome.
+    value: ${{ steps.diff-coverage.outcome }}
+  coverage-scope:
+    description: Coverage report source scope outcome.
+    value: ${{ steps.coverage-scope.outcome }}
+  needs:
+    description: Required-job outcome.
+    value: ${{ steps.needs.outcome }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare tools
+      id: tools
+      continue-on-error: true
+      shell: bash
+      env:
+        SEMGREP: ${{ inputs.semgrep }}
+        COMPLEXITY_MAX: ${{ inputs.complexity-max }}
+        COVERAGE_MIN: ${{ inputs.diff-coverage-min }}
+        DUPLICATION: ${{ inputs.duplication }}
+        NEW_CLONES: ${{ inputs.duplication-new-clones }}
+        BASE: ${{ inputs.base }}
+      run: |
+        if [[ "$SEMGREP" == true || ( -n "$BASE" && ( "$COMPLEXITY_MAX" != 0 || "$COVERAGE_MIN" != 0 ) ) ]]; then
+          python -m pip install --disable-pip-version-check --quiet -r "$GITHUB_ACTION_PATH/requirements.txt"
+        fi
+        if [[ "$DUPLICATION" == true || ( "$NEW_CLONES" == true && -n "$BASE" ) ]]; then
+          npm ci --ignore-scripts --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
+        fi
+
+    - name: Cache pinned Semgrep rules
+      if: inputs.semgrep == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/semgrep-rules/source
+        key: semgrep-rules-a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2
+
+    - name: Gitleaks
+      id: gitleaks
+      if: ${{ always() && inputs.gitleaks == 'true' }}
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      run: |
+        archive="$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
+        curl -fsSL -o "$archive" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+        echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $archive" | sha256sum --check --strict
+        tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+        test "$(git rev-parse --is-shallow-repository)" = false
+        "$RUNNER_TEMP/gitleaks" git --no-banner --redact --verbose --log-opts="--all --full-history" .
+
+    - name: Actionlint
+      id: actionlint
+      if: ${{ always() && inputs.actionlint == 'true' }}
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      run: |
+        shopt -s nullglob
+        workflows=(.github/workflows/*.yml .github/workflows/*.yaml)
+        if [[ ${#workflows[@]} -eq 0 ]]; then
+          echo "::notice::No workflows to lint"
+          exit 0
+        fi
+        archive="$RUNNER_TEMP/actionlint_1.7.12_linux_amd64.tar.gz"
+        curl -fsSL -o "$archive" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+        echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum --check --strict
+        tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+        "$RUNNER_TEMP/actionlint" -color "${workflows[@]}"
+
+    - name: Semgrep
+      id: semgrep
+      if: ${{ always() && inputs.semgrep == 'true' }}
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        PYTHONUTF8: "1"
+        SEMGREP_ENABLE_VERSION_CHECK: "0"
+        EXCLUDE: ${{ inputs.exclude }}
+        EXCLUDE_RULES: ${{ inputs.semgrep-exclude-rules }}
+      run: |
+        source_dir="$RUNNER_TEMP/semgrep-rules/source"
+        rules="$RUNNER_TEMP/semgrep-rules/rules"
+        sha=a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2
+        if [[ ! -d "$source_dir/.git" ]]; then
+          mkdir -p "$source_dir"
+          git -C "$source_dir" init --quiet
+        fi
+        if ! git -C "$source_dir" cat-file -e "$sha^{commit}" 2>/dev/null; then
+          git -C "$source_dir" fetch --depth=1 https://github.com/semgrep/semgrep-rules.git "$sha"
+        fi
+        git -C "$source_dir" checkout --quiet --force "$sha"
+        python "$GITHUB_ACTION_PATH/prepare_rules.py" "$source_dir" "$rules" "$GITHUB_ACTION_PATH/semgrep-rules.txt"
+        args=()
+        IFS=',' read -ra exclusions <<< "**/node_modules/**,**/vendor/**,**/dist/**,**/build/**,**/coverage/**,**/.venv/**,**/.github-shared-ci/**,$EXCLUDE"
+        for item in "${exclusions[@]}"; do
+          [[ -z "$item" ]] || args+=(--exclude "$item")
+        done
+        report="$(mktemp "$RUNNER_TEMP/semgrep.XXXXXX.json")"
+        code=0
+        semgrep scan --config "$rules" --metrics=off --json "${args[@]}" . > "$report" || code=$?
+        python "$GITHUB_ACTION_PATH/semgrep_gate.py" "$report" --exit-code "$code" --exclude-rules "$EXCLUDE_RULES"
+
+    - name: Duplication
+      id: duplication
+      if: ${{ always() && inputs.duplication == 'true' }}
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        EXCLUDE: ${{ inputs.exclude }}
+        MAXIMUM: ${{ inputs.duplication-max }}
+        FORMATS: ${{ inputs.duplication-formats }}
+      run: |
+        python "$GITHUB_ACTION_PATH/duplication_gate.py" --path . --exclude "$EXCLUDE" --max "$MAXIMUM" --formats "$FORMATS"
+
+    - name: New clones
+      id: new-clones
+      if: ${{ always() && inputs.duplication-new-clones == 'true' && inputs.base != '' }}
+      continue-on-error: true
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        EXCLUDE: ${{ inputs.exclude }}
+        BASE: ${{ inputs.base }}
+        FORMATS: ${{ inputs.duplication-formats }}
+      run: python "$GITHUB_ACTION_PATH/duplication_gate.py" --path . --exclude "$EXCLUDE" --base "$BASE" --formats "$FORMATS"
+
+    - name: New-code complexity
+      id: complexity
+      if: ${{ always() && inputs.complexity-max != '0' && inputs.base != '' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        BASE: ${{ inputs.base }}
+        MAXIMUM: ${{ inputs.complexity-max }}
+        EXCLUDE: ${{ inputs.exclude }}
+      run: python "$GITHUB_ACTION_PATH/complexity_gate.py" --path "$SCAN_PATH" --base "$BASE" --max "$MAXIMUM" --exclude "$EXCLUDE"
+
+    - name: Coverage report scope
+      id: coverage-scope
+      if: ${{ always() && inputs.diff-coverage-min != '0' && inputs.base != '' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        BASE: ${{ inputs.base }}
+        MINIMUM: ${{ inputs.diff-coverage-min }}
+        COVERAGE_DIR: ${{ inputs.coverage-dir }}
+        COVERAGE_PATHS: ${{ inputs.coverage-paths }}
+        SRC_ROOTS: ${{ inputs.diff-cover-src-roots }}
+        EXCLUDE: ${{ inputs.exclude }}
+      run: >-
+        python "$GITHUB_ACTION_PATH/coverage_scope.py" --path "$SCAN_PATH" --base "$BASE"
+        --coverage-dir "${COVERAGE_DIR:-$RUNNER_TEMP/coverage}" --min "$MINIMUM" --scope-only
+        --coverage-paths "$COVERAGE_PATHS" --src-roots "$SRC_ROOTS" --exclude "$EXCLUDE"
+
+    - name: Diff coverage
+      id: diff-coverage
+      if: ${{ always() && inputs.diff-coverage-min != '0' && inputs.base != '' && steps.coverage-scope.outcome == 'success' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        BASE: ${{ inputs.base }}
+        MINIMUM: ${{ inputs.diff-coverage-min }}
+        COVERAGE_DIR: ${{ inputs.coverage-dir }}
+        COVERAGE_PATHS: ${{ inputs.coverage-paths }}
+        SRC_ROOTS: ${{ inputs.diff-cover-src-roots }}
+        EXCLUDE: ${{ inputs.exclude }}
+      run: >-
+        python "$GITHUB_ACTION_PATH/coverage_scope.py" --path "$SCAN_PATH" --base "$BASE"
+        --coverage-dir "${COVERAGE_DIR:-$RUNNER_TEMP/coverage}" --min "$MINIMUM"
+        --coverage-paths "$COVERAGE_PATHS" --src-roots "$SRC_ROOTS" --exclude "$EXCLUDE"
+
+    - name: Required jobs
+      id: needs
+      if: always()
+      continue-on-error: true
+      shell: bash
+      env:
+        NEEDS_JSON: ${{ inputs.needs }}
+        ALLOW_SKIPPED: ${{ inputs.allow-skipped }}
+      run: python "$GITHUB_ACTION_PATH/needs_gate.py" --needs "$NEEDS_JSON" --allow-skipped "$ALLOW_SKIPPED"
+
+    - name: Verdict
+      if: always()
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+        TOOLS: ${{ steps.tools.outcome }}
+        GITLEAKS: ${{ steps.gitleaks.outcome }}
+        ACTIONLINT: ${{ steps.actionlint.outcome }}
+        SEMGREP: ${{ steps.semgrep.outcome }}
+        DUPLICATION: ${{ steps.duplication.outcome }}
+        NEW_CLONES: ${{ steps.new-clones.outcome }}
+        COMPLEXITY: ${{ steps.complexity.outcome }}
+        DIFF_COVERAGE: ${{ steps.diff-coverage.outcome }}
+        COVERAGE_SCOPE: ${{ steps.coverage-scope.outcome }}
+        NEEDS: ${{ steps.needs.outcome }}
+      run: python "$GITHUB_ACTION_PATH/verdict.py"

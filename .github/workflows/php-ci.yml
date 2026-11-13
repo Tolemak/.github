@@ -55,6 +55,10 @@ on:
         description: Minimum line coverage in percent; 0 disables the gate.
         type: number
         default: 80
+      coverage-artifact:
+        description: Upload coverage-file under this artifact name.
+        type: string
+        default: ""
       mongodb-version:
         description: Start a MongoDB service of this version (e.g. "5.0") on 127.0.0.1:27017. Empty = none.
         type: string
@@ -190,7 +194,7 @@ jobs:
         with:
           php-version: ${{ inputs.php-version }}
           extensions: ${{ inputs.postgres-version != '' && format('{0}{1}pdo_pgsql', inputs.extensions, inputs.extensions != '' && ', ' || '') || inputs.extensions }}
-          coverage: ${{ inputs.coverage-min > 0 && 'pcov' || 'none' }}
+          coverage: ${{ (inputs.coverage-min > 0 || inputs.coverage-artifact != '') && 'pcov' || 'none' }}
           tools: composer:v2
 
       - name: Locate Composer cache
@@ -270,7 +274,7 @@ jobs:
         env:
           PHPUNIT: ${{ inputs.phpunit-command }}
           COVERAGE_FILE: ${{ inputs.coverage-file }}
-          WITH_COVERAGE: ${{ inputs.coverage-min > 0 }}
+          WITH_COVERAGE: ${{ inputs.coverage-min > 0 || inputs.coverage-artifact != '' }}
         run: |
           # $PHPUNIT is intentionally unquoted so it may carry arguments.
           # shellcheck disable=SC2086
@@ -280,6 +284,15 @@ jobs:
           else
             $PHPUNIT
           fi
+
+      - name: Upload coverage
+        if: inputs.coverage-artifact != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.coverage-artifact }}
+          path: ${{ inputs.working-directory }}/${{ inputs.coverage-file }}
+          retention-days: 1
+          if-no-files-found: error
 
       # The gate lives in this repository; check it out at the exact commit of this workflow.
       # Done after the tests so the extra directory never reaches linters or test discovery.
