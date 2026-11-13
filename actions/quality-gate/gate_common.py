@@ -4,7 +4,7 @@ from pathlib import Path
 
 SOURCE_PATTERNS = tuple(f"**/*.{ext}" for ext in ("py", "ts", "tsx", "js", "jsx", "mjs", "cjs", "php", "kt"))
 DIRECTORIES = ("node_modules", "vendor", "dist", "build", "coverage", ".venv", ".github-shared-ci", ".git")
-BUILTIN_EXCLUDES = tuple(f"**/{name}/**" for name in DIRECTORIES)
+BUILTIN_EXCLUDES = tuple(f"**/{name}/**" for name in DIRECTORIES) + ("**/*.d.ts",)
 TEST_EXCLUDES = (
     "**/test/**",
     "**/tests/**",

@@ -6,7 +6,7 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from gate_common import SOURCE_PATTERNS, changed_files, error, repository, selected
+from gate_common import SOURCE_PATTERNS, changed_files, error, escape, repository, selected
 
 
 def relative_path(value, root):
@@ -87,10 +87,12 @@ def evaluate(root, base, directory, minimum, includes=SOURCE_PATTERNS, exclude="
         return 1
     measured = {report: report_paths(report, root, src_roots) for report in reports}
     missing = sorted(set(changed) - set().union(*measured.values()))
-    for path in missing:
-        error(f"{path}: changed source file is absent from all coverage reports")
-    if missing:
+    if len(missing) == len(changed):
+        for path in missing:
+            error(f"{path}: changed source file is absent from all coverage reports")
         return 1
+    for path in missing:
+        print(f"::warning::{escape(path)}: absent from all coverage reports, no executable lines or not instrumented")
     if scope_only:
         return 0
     failed = 0

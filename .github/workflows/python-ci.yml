@@ -118,9 +118,13 @@ jobs:
           RUFF_VERSION: ${{ inputs.ruff-version }}
           MYPY_VERSION: ${{ inputs.mypy-version }}
           COVERAGE_VERSION: ${{ inputs.coverage-version }}
-        run: >-
-          python -m pip install --disable-pip-version-check --quiet
-          "ruff==$RUFF_VERSION" "mypy==$MYPY_VERSION" "coverage[toml]==$COVERAGE_VERSION"
+          PIP_AUDIT: ${{ inputs.pip-audit }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            "ruff==$RUFF_VERSION" "mypy==$MYPY_VERSION" "coverage[toml]==$COVERAGE_VERSION"
+          if [[ "$PIP_AUDIT" == "true" ]] && python -m pip show --quiet setuptools 2>/dev/null; then
+            python -m pip install --disable-pip-version-check --quiet --upgrade setuptools
+          fi
 
       - name: Install dependencies
         env:

@@ -10,7 +10,7 @@ from gate_common import changed_files, error, git, repository, selected
 def functions(filename, content):
     grouped = defaultdict(list)
     for function in lizard.analyze_file.analyze_source_code(filename, content).function_list:
-        grouped[function.long_name].append(function)
+        grouped[function.name].append(function)
     return grouped
 
 

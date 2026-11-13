@@ -18,6 +18,11 @@ class ComplexityTests(unittest.TestCase):
         self.assertEqual(list(regressions("source.py", old, function(4), 3)), [])
         self.assertEqual(len(list(regressions("source.py", old, function(6), 3))), 1)
 
+    def test_signature_annotations_keep_function_identity(self):
+        old = function(5)
+        annotated = old.replace("def calculate(value):", "def calculate(value: int) -> int:")
+        self.assertEqual(list(regressions("source.py", old, annotated, 3)), [])
+
     def test_new_function_and_threshold_boundary(self):
         self.assertEqual(list(regressions("source.py", "", function(2), 3)), [])
         self.assertEqual(len(list(regressions("source.py", "", function(3), 3))), 1)

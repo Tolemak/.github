@@ -96,6 +96,13 @@ class CoverageTests(unittest.TestCase):
             self.assertEqual(evaluate(repo.root, base, repo.root / "missing", 80, ("src/*.ts",)), 0)
             self.assertEqual(evaluate(repo.root, base, repo.root / "missing", 80, exclude="src/**,generated/**"), 0)
 
+    def test_typescript_declarations_need_no_coverage(self):
+        with GitRepository() as repo:
+            base = repo.commit()
+            repo.write("src/global.d.ts", "declare const value: number;\n")
+            repo.commit()
+            self.assertEqual(evaluate(repo.root, base, repo.root / "missing", 80), 0)
+
     def test_scope_only_validates_without_running_diff_cover(self):
         with GitRepository() as repo:
             base = repo.commit()
@@ -126,3 +133,19 @@ class CoverageTests(unittest.TestCase):
             self.assertEqual(
                 main(["--path", str(repo.root), "--base", base, "--coverage-dir", str(repo.root / "reports")]), 1
             )
+
+    def test_partially_missing_sources_warn_and_measured_ones_are_checked(self):
+        with GitRepository() as repo:
+            base = repo.commit()
+            repo.write("src/a.py", "value = 1\n")
+            repo.write("src/port.py", "class Port: ...\n")
+            repo.commit()
+            repo.write("reports/a.xml", '<coverage><packages><class filename="src/a.py"/></packages></coverage>')
+            with (
+                patch("coverage_scope.subprocess.call", return_value=0) as run,
+                contextlib.redirect_stdout(io.StringIO()) as output,
+            ):
+                self.assertEqual(evaluate(repo.root, base, repo.root / "reports", 80), 0)
+            self.assertIn("::warning::src/port.py", output.getvalue())
+            self.assertIn("src/a.py", run.call_args.args[0])
+            self.assertNotIn("src/port.py", run.call_args.args[0])

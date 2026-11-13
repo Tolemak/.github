@@ -1,4 +1,6 @@
 import os
+import secrets
+import string
 import subprocess
 from pathlib import Path
 
@@ -56,7 +58,7 @@ def populate(root, case):
             "</lines></class></classes></package></packages></coverage>",
         )
     elif case == "gitleaks":
-        token = "ghp_" + "0123456789abcdefghijklmnopqrstuvwxyz"
+        token = "ghp_" + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(36))
         write(root, "credentials.txt", f"github_token={token}\n")
     elif case == "actionlint":
         write(
