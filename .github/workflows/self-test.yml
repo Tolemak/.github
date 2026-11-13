@@ -203,6 +203,45 @@ jobs:
       artifact-name: ${{ matrix.node-version == '22' && 'node-fixture-dist' || '' }}
       artifact-include-hidden-files: true
 
+  node-lint-opt-out:
+    name: node-ci (lint opt-out)
+    uses: ./.github/workflows/node-ci.yml
+    with:
+      working-directory: tests/fixtures/node-nolint
+      lint-command: ""
+      readme-check: false
+
+  node-missing-scripts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Default lint and test commands fail without the scripts
+        run: |
+          set -uo pipefail
+          workflow="$PWD/.github/workflows/node-ci.yml"
+          work="$(mktemp -d)"
+          printf '%s\n' '{"name":"no-scripts","version":"0.0.0","private":true}' > "$work/package.json"
+          fail=0
+          for input in lint-command test-command; do
+            script="${input%-command}"
+            cmd="$(yq ".on.workflow_call.inputs.\"$input\".default" "$workflow")"
+            if out="$(cd "$work" && eval "$cmd" 2>&1)"; then
+              echo "::error::$input default '$cmd' passed without a $script script"
+              fail=1
+            elif grep -qF "Missing script: \"$script\"" <<<"$out"; then
+              echo "ok   $input default '$cmd' fails without a $script script"
+            else
+              echo "::error::$input default '$cmd' failed for another reason"
+              echo "$out"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
   python:
     name: python-ci
     strategy:

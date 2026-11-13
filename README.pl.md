@@ -17,15 +17,16 @@ Wspólne workflowy GitHub Actions i domyślne pliki społeczności dla moich rep
 ```yaml
 jobs:
   ci:
-    uses: Tolemak/.github/.github/workflows/node-ci.yml@v1
+    uses: Tolemak/.github/.github/workflows/node-ci.yml@v2
     with:
       node-version: "24"
+      coverage-file: coverage/cobertura-coverage.xml
       coverage-min: 80
 ```
 
-`composer-validate` (php-ci) i `audit-omit-dev` (node-ci) są domyślnie wyłączone. `pip-audit` (python-ci) i `readme-check` są domyślnie włączone; `audit-level` (node-ci) ma domyślną wartość `low`. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
+`composer-validate` (php-ci) i `audit-omit-dev` (node-ci) są domyślnie wyłączone. `pip-audit` (python-ci) i `readme-check` są domyślnie włączone; `audit-level` (node-ci) ma domyślną wartość `low`. node-ci domyślnie uruchamia `npm run lint` i `npm run test`, więc pakiet bez skryptu `lint` albo `test` nie przechodzi; `lint-command: ""` albo `test-command: ""` świadomie pomija dany krok. Wszystkie workflowy domyślnie używają przypiętego runnera `ubuntu-24.04`; nowszy obraz wybierasz świadomie przez `runs-on`.
 
-Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v1` albo pełny SHA commita.
+Wejścia i ich domyślne wartości są na początku każdego pliku workflowu. Przypinaj `@v2` albo pełny SHA commita.
 `templates/dependabot.yml` to punkt wyjścia dla `.github/dependabot.yml`.
 
 ## Wersjonowanie

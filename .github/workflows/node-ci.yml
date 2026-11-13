@@ -32,17 +32,21 @@ on:
         type: string
         default: low
       lint-command:
-        description: Lint command (e.g. "npx eslint . --max-warnings 0" or "npx oxlint --deny-warnings"). Empty = skip.
+        description: >-
+          Lint command (e.g. "npx eslint . --max-warnings 0" or "npx oxlint --deny-warnings").
+          The default fails when package.json has no lint script; pass an empty string to skip linting.
         type: string
-        default: npm run lint --if-present
+        default: npm run lint
       typecheck-command:
         description: Type-check command. Empty = skip.
         type: string
         default: npm run typecheck --if-present
       test-command:
-        description: Test command; coverage thresholds belong in the test runner config (e.g. vitest.config). Empty = skip.
+        description: >-
+          Test command; coverage thresholds belong in the test runner config (e.g. vitest.config).
+          The default fails when package.json has no test script; pass an empty string to skip tests.
         type: string
-        default: npm run test --if-present
+        default: npm run test
       build-command:
         description: Build command. Empty = skip.
         type: string
