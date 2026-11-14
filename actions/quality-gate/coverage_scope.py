@@ -76,8 +76,12 @@ def diff_command(reports, base, minimum, changed, src_roots):
     return command
 
 
+CONFIG_FILES = "**/*.config.*,**/*rc.js,**/*rc.cjs"
+
+
 def evaluate(root, base, directory, minimum, includes=SOURCE_PATTERNS, exclude="", src_roots=(), scope_only=False):
-    changed = [new for _, new in changed_files(root, base) if selected(new, includes, exclude)]
+    excluded = f"{CONFIG_FILES},{exclude}"
+    changed = [new for _, new in changed_files(root, base) if selected(new, includes, excluded)]
     if not changed:
         print("No changed source files require coverage")
         return 0
